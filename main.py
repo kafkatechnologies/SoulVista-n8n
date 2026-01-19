@@ -37,9 +37,9 @@ def calculate(data: BirthData):
         tf = TimezoneFinder()
         tz_name = tf.timezone_at(lng=location.longitude, lat=location.latitude)
         
-        # 3. Process Time
+        # 3. Process Time (Format changed to DD-MM-YYYY)
         local_tz = pytz.timezone(tz_name)
-        local_dt = datetime.strptime(f"{data.dateOfBirth} {data.timeOfBirth}", "%Y-%m-%d %H:%M")
+        local_dt = datetime.strptime(f"{data.dateOfBirth} {data.timeOfBirth}", "%d-%m-%Y %H:%M")
         utc_dt = local_tz.localize(local_dt).astimezone(pytz.utc)
         jd_ut = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, utc_dt.hour + utc_dt.minute/60.0)
 
