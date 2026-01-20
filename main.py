@@ -5,7 +5,6 @@ from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
 from datetime import datetime
 import pytz
-import time
 
 app = FastAPI()
 
@@ -15,6 +14,7 @@ NAKSHATRAS = ["Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
 PLANET_MAP = {"Sun": swe.SUN, "Moon": swe.MOON, "Mars": swe.MARS, "Mercury": swe.MERCURY, "Jupiter": swe.JUPITER, "Venus": swe.VENUS, "Saturn": swe.SATURN, "Rahu": swe.MEAN_NODE}
 
 class BirthData(BaseModel):
+    name: str  # Added Name as input
     dateOfBirth: str
     timeOfBirth: str
     placeOfBirth: str
@@ -38,11 +38,8 @@ def calculate(data: BirthData):
         tz_name = tf.timezone_at(lng=location.longitude, lat=location.latitude)
         
         # 3. Process Time 
-        # Extract HH:MM if time format is HH:MM:SS
         clean_time = ":".join(data.timeOfBirth.split(":")[:2])
-        
         local_tz = pytz.timezone(tz_name)
-        # Format strictly changed to dd/mm/yyyy
         local_dt = datetime.strptime(f"{data.dateOfBirth} {clean_time}", "%d/%m/%Y %H:%M")
         utc_dt = local_tz.localize(local_dt).astimezone(pytz.utc)
         jd_ut = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, utc_dt.hour + utc_dt.minute/60.0)
@@ -67,6 +64,7 @@ def calculate(data: BirthData):
             })
 
         return {
+            "name": data.name,  # Added Name in output
             "ascendant": SIGNS[int(d1_lag_lon / 30)],
             "planetary_placements": planets,
             "metadata": {"timezone": tz_name, "lat": location.latitude, "lon": location.longitude}
