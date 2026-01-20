@@ -14,7 +14,7 @@ NAKSHATRAS = ["Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
 PLANET_MAP = {"Sun": swe.SUN, "Moon": swe.MOON, "Mars": swe.MARS, "Mercury": swe.MERCURY, "Jupiter": swe.JUPITER, "Venus": swe.VENUS, "Saturn": swe.SATURN, "Rahu": swe.MEAN_NODE}
 
 class BirthData(BaseModel):
-    name: str  # Added Name as input
+    name: str
     dateOfBirth: str
     timeOfBirth: str
     placeOfBirth: str
@@ -29,19 +29,27 @@ def calculate(data: BirthData):
     try:
         # 1. Get Coordinates
         geolocator = Nominatim(user_agent="soulvista_engine")
-        location = geolocator.geocode(f"{data.placeOfBirth}, {data.stateOfBirth}, India")
+        search_query = f"{data.placeOfBirth}, {data.stateOfBirth}, India"
+        location = geolocator.geocode(search_query, timeout=10)
+        
         if not location:
             raise HTTPException(status_code=400, detail="Location not found")
         
         # 2. Get Timezone
         tf = TimezoneFinder()
         tz_name = tf.timezone_at(lng=location.longitude, lat=location.latitude)
+        if not tz_name:
+            tz_name = "Asia/Kolkata"
         
-        # 3. Process Time 
-        clean_time = ":".join(data.timeOfBirth.split(":")[:2])
-        local_tz = pytz.timezone(tz_name)
-        local_dt = datetime.strptime(f"{data.dateOfBirth} {clean_time}", "%d/%m/%Y %H:%M")
-        utc_dt = local_tz.localize(local_dt).astimezone(pytz.utc)
+        # 3. Process Time
+        try:
+            clean_time = ":".join(data.timeOfBirth.split(":")[:2])
+            local_tz = pytz.timezone(tz_name)
+            local_dt = datetime.strptime(f"{data.dateOfBirth} {clean_time}", "%d/%m/%Y %H:%M")
+            utc_dt = local_tz.localize(local_dt).astimezone(pytz.utc)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid date or time format. Use DD/MM/YYYY and HH:MM")
+
         jd_ut = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, utc_dt.hour + utc_dt.minute/60.0)
 
         # 4. Calculations
@@ -63,11 +71,23 @@ def calculate(data: BirthData):
                 "nakshatra": NAKSHATRAS[int(p_lon / (40/3)) % 27]
             })
 
+        # Final Return formatted exactly as requested
         return {
-            "name": data.name,  # Added Name in output
+            "name": data.name,
             "ascendant": SIGNS[int(d1_lag_lon / 30)],
             "planetary_placements": planets,
-            "metadata": {"timezone": tz_name, "lat": location.latitude, "lon": location.longitude}
+            "metadata": {
+                "timezone": tz_name,
+                "lat": location.latitude,
+                "lon": location.longitude
+            }
         }
+
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=10000)
